@@ -1,0 +1,30 @@
+#!/bin/sh
+
+TARGET=$1
+
+mkdir ${TARGET}
+
+./bin/basefs_init ${TARGET}/basefs
+
+cp -a ${TARGET}/basefs ${TARGET}/helperfs
+./bin/helperfs_config ${TARGET}/helperfs
+
+./bin/basefs_config ${TARGET}/basefs
+
+cp -a ${TARGET}/basefs ${TARGET}/rootfs
+./bin/rootfs_clear ${TARGET}/rootfs
+mkdir -p ${TARGET}/rootfs/lib/modules
+rsync -aS ${TARGET}/helperfs/lib/modules/ ${TARGET}/rootfs/lib/modules/
+
+for dir in sys lib/modules dev bin proc; do
+    mkdir -p ${TARGET}/ramdisk/${dir}
+done
+./bin/rootfs_mksquashfs ${TARGET}/rootfs ${TARGET}/ramdisk/rootfs.squash
+./bin/ramdisk_modules ${TARGET}/ramdisk ${TARGET}/rootfs 4.9.0-3-amd64
+cp ${TARGET}/helperfs/bin/busybox ${TARGET}/ramdisk/bin/busybox
+./bin/ramdisk_config ${TARGET}/ramdisk
+
+mkdir ${TARGET}/output
+./bin/ramdisk_make ${TARGET}/output/initrd.img ${TARGET}/ramdisk
+
+cp ${TARGET}/helperfs/boot/vmlinuz-4.9.0-3-amd64 ${TARGET}/output/vmlinuz

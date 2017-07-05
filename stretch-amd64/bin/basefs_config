@@ -1,0 +1,60 @@
+#!/bin/sh
+
+TARGET=$1
+LANG=C
+VERSION="$(date +%g.%m)"
+
+SOFTWARE="acl acpi-support-base attr bash-completion bind9-host binutils \
+  bridge-utils bsdmainutils debootstrap dmidecode ethtool file gddrescue gdisk \
+  hddtemp hdparm ifenslave iproute2 iputils-ping less lsof lvm2 lzip \
+  mdadm mtr-tiny netcat-traditional net-tools ntfs-3g parted pciutils procps \
+  psmisc rsync screen scrub smartmontools ssh strace sysstat tar telnet \
+  traceroute tree usbutils vim vlan wget xz-utils systemd systemd-sysv"
+
+cat << EOF > ${TARGET}/usr/sbin/policy-rc.d
+#!/bin/sh
+echo "All runlevel operations denied by policy" >&2
+exit 101
+EOF
+chmod a+x $TARGET/usr/sbin/policy-rc.d
+
+chroot ${TARGET} apt-get --yes install ${SOFTWARE}
+chroot ${TARGET} systemctl enable systemd-networkd.service
+chroot ${TARGET} systemctl enable systemd-resolved.service
+
+rm ${TARGET}/usr/sbin/policy-rc.d
+
+echo "Etc/UTC" > ${TARGET}/etc/timezone
+chroot ${TARGET} dpkg-reconfigure -f noninteractive tzdata
+
+cat << EOF > ${TARGET}/etc/motd
+
+WARNING: Authorized access only!
+
+EOF
+cat << EOF > ${TARGET}/etc/issue
+WMI Rescue Linux (based on Debian GNU/Linux Stretch)
+Version ${VERSION}, AMD64
+
+EOF
+cat << EOF > ${TARGET}/etc/systemd/network/all.network
+[Match]
+
+[Network]
+DHCP=both
+EOF
+cat << EOF > ${TARGET}/etc/systemd/resolved.conf
+[Resolve]
+DNS=8.8.8.8 8.8.4.4 2001:4860:4860::8888 2001:4860:4860::8844
+EOF
+rm ${TARGET}/etc/resolv.conf
+ln -s /run/systemd/resolve/resolv.conf ${TARGET}/etc/resolv.conf
+cat << EOF > ${TARGET}/etc/screenrc
+startup_message off
+defscrollback 5000
+EOF
+cat << EOF > ${TARGET}/etc/sysctl.d/60-panic.conf
+kernel.panic = 5
+kernel.panic_on_oops = 1
+EOF
+rsync -avS ${TARGET}/etc/skel/ ${TARGET}/root/

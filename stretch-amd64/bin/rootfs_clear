@@ -1,0 +1,42 @@
+#!/bin/sh
+
+TARGET=$1
+
+CLEANDIRS="\
+tmp \
+usr/doc \
+usr/include \
+usr/info \
+usr/man \
+usr/share/doc \
+usr/share/doc-base \
+usr/share/groff \
+usr/share/info \
+usr/share/locale \
+usr/share/man \
+var/cache/apt/archives \
+var/cache/man \
+var/lib/apt/lists \
+var/tmp"
+
+if [ ! -d "${TARGET}" ]; then
+    echo "Usage: $0 <rootfs_dir>"
+    exit 255
+fi
+
+echo "Cleaning up ${TARGET}..."
+
+find ${TARGET} -name \*~ -delete
+for dir in ${CLEANDIRS}; do
+    rm -rf ${TARGET}/${dir}/*
+done
+rm -f ${TARGET}/var/cache/apt/*.bin
+rm -f ${TARGET}/root/.{bash_history,viminfo}
+
+mkdir -p ${TARGET}/var/lib/apt/lists/partial
+mkdir -p ${TARGET}/var/cache/apt/archives/partial
+
+for file in $(find ${TARGET}/var/log -type f); do
+    : > ${file}
+done
+

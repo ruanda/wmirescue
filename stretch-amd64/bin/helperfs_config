@@ -1,0 +1,17 @@
+#!/bin/sh
+
+TARGET=$1
+LANG=C
+
+cat << EOF > $TARGET/usr/sbin/policy-rc.d
+#!/bin/sh
+echo "All runlevel operations denied by policy" >&2
+exit 101
+EOF
+chmod a+x $TARGET/usr/sbin/policy-rc.d
+
+chroot ${TARGET} mount -t proc proc /proc
+chroot ${TARGET} apt-get --yes install busybox-static linux-image-4.9.0-3-amd64
+chroot ${TARGET} apt-get --yes install linux-headers-4.9.0-3-amd64
+chroot ${TARGET} apt-get --yes install zfs-dkms
+chroot ${TARGET} umount /proc

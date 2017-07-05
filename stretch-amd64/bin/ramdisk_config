@@ -1,0 +1,80 @@
+#!/bin/sh
+
+TARGET=$1
+LANG=C
+
+cat << EOF > ${TARGET}/message
+** WMI Rescue Linux (amd64) booting **
+EOF
+
+for cmd in cat echo find insmod mkdir mount sh switch_root tar; do
+    ln -s busybox ${TARGET}/bin/${cmd}
+done
+
+cat << EOF > ${TARGET}/init
+#!/bin/sh
+# WMI Rescue Linux init script.
+# (C)2011 Michał Siejak <masterm@wmi.amu.edu.pl>
+# (C)2012-2017 Mateusz Hromada <ruanda@wmi.amu.edu.pl>
+
+# Print message banner
+cat /message
+
+# Mount virtual filesystems
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+mount -t devtmpfs devfs /dev
+
+# Create dev directories
+mkdir -p /dev/pts
+mkdir -p /dev/shm
+
+# Create mount points
+mkdir /rootfs
+mkdir /mnt
+mkdir /mnt/squashfs
+mkdir /mnt/tmpfs
+
+# Load modules
+insmod /lib/modules/4.9.0-3-amd64/kernel/drivers/block/loop.ko
+insmod /lib/modules/4.9.0-3-amd64/kernel/fs/squashfs/squashfs.ko
+insmod /lib/modules/4.9.0-3-amd64/kernel/fs/overlayfs/overlay.ko
+
+# Mount root filesystem
+echo "INITRAMFS: Mounting overlayfs branches ..."
+mount -t squashfs -o loop,ro /rootfs.squash /mnt/squashfs
+mount -t tmpfs -o mode=755,rw tmpfs /mnt/tmpfs
+mkdir /mnt/tmpfs/rw
+mkdir /mnt/tmpfs/work
+mount -t overlay -o rw,workdir=/mnt/tmpfs/work,upperdir=/mnt/tmpfs/rw,lowerdir=/mnt/squashfs overlay /rootfs
+
+# Extract any addon packages
+if [ -n "$(find . -maxdepth 1 -name '*.tar')" ]; then
+  for i in /*.tar; do
+    echo "INITRAMFS: Extracting: $i ..."
+    tar x -f $i -C /rootfs
+  done
+fi
+
+echo "INITRAMFS: Preparing rootfs environment ..."
+# Move aufs branches to new root
+mkdir -p /rootfs/media/.squashfs
+mkdir -p /rootfs/media/.tmpfs
+mount --move /mnt/squashfs /rootfs/media/.squashfs
+mount --move /mnt/tmpfs /rootfs/media/.tmpfs
+
+# Move virtual filesystems to new root
+mount --move /proc /rootfs/proc
+mount --move /sys /rootfs/sys
+mount --move /dev /rootfs/dev
+
+# Switch to new root filesystem
+echo "INITRAMFS: Switching to new rootfs ..."
+exec switch_root -c /dev/console /rootfs /sbin/init
+
+# Should not reach here
+echo "INITRAMFS: Could not switch to new rootfs! System halted."
+
+exit 0
+EOF
+chmod a+x ${TARGET}/init
