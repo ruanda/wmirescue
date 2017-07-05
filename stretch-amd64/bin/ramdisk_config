@@ -49,10 +49,10 @@ mkdir /mnt/tmpfs/work
 mount -t overlay -o rw,workdir=/mnt/tmpfs/work,upperdir=/mnt/tmpfs/rw,lowerdir=/mnt/squashfs overlay /rootfs
 
 # Extract any addon packages
-if [ -n "$(find . -maxdepth 1 -name '*.tar')" ]; then
+if [ -n "\$(find . -maxdepth 1 -name '*.tar')" ]; then
   for i in /*.tar; do
-    echo "INITRAMFS: Extracting: $i ..."
-    tar x -f $i -C /rootfs
+    echo "INITRAMFS: Extracting: \$i ..."
+    tar x -f \$i -C /rootfs
   done
 fi
 
