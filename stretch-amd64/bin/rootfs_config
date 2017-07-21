@@ -58,4 +58,5 @@ cat << EOF > ${TARGET}/etc/sysctl.d/60-panic.conf
 kernel.panic = 5
 kernel.panic_on_oops = 1
 EOF
+sed -i 's/" let g:skip_defaults_vim = 1/let g:skip_defaults_vim = 1/g' /etc/vim/vimrc
 rsync -avS ${TARGET}/etc/skel/ ${TARGET}/root/
