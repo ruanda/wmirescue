@@ -3,6 +3,10 @@
 TARGET=$1
 LANG=C
 
+FIRMWARES="firmware-bnx2 firmware-bnx2x firmware-cavium firmware-linux-free \
+    firmware-misc-nonfree firmware-myricom firmware-netxen firmware-qlogic \
+    firmware-realtek"
+
 cat << EOF > $TARGET/usr/sbin/policy-rc.d
 #!/bin/sh
 echo "All runlevel operations denied by policy" >&2
@@ -14,4 +18,5 @@ chroot ${TARGET} mount -t proc proc /proc
 chroot ${TARGET} apt-get --yes install busybox-static linux-image-4.9.0-3-amd64
 chroot ${TARGET} apt-get --yes install linux-headers-4.9.0-3-amd64
 chroot ${TARGET} apt-get --yes install zfs-dkms
+chroot ${TARGET} apt-get --yes install ${FIRMWARES}
 chroot ${TARGET} umount /proc

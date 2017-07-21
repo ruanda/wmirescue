@@ -4,6 +4,7 @@ TARGET=$1
 
 mkdir ${TARGET}
 mkdir ${TARGET}/ramdisk
+mkdir ${TARGET}/firmware
 mkdir ${TARGET}/output
 
 ./bin/basefs_init ${TARGET}/basefs
@@ -32,6 +33,10 @@ cp ${TARGET}/helperfs/bin/busybox ${TARGET}/ramdisk/bin/busybox
 ./bin/ramdisk_modules ${TARGET}/ramdisk ${TARGET}/rootfs 4.9.0-3-amd64
 ./bin/ramdisk_config ${TARGET}/ramdisk
 ./bin/ramdisk_make ${TARGET}/output/initrd.img ${TARGET}/ramdisk
+
+# FIRMWARE
+tar cf ${TARGET}/firmware/firmware.tar --owner=root --group=root -C ${TARGET}/helperfs ./lib/firmware
+./bin/ramdisk_make ${TARGET}/output/firmware.img ${TARGET}/firmware
 
 # KERNEL
 
