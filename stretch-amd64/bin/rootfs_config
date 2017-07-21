@@ -5,11 +5,11 @@ LANG=C
 VERSION="$(date +%g.%m)"
 
 SOFTWARE="acl acpi-support-base attr bash-completion bind9-host binutils \
-  bridge-utils bsdmainutils debootstrap dmidecode ethtool file gddrescue gdisk \
+  bridge-utils bsdmainutils debootstrap dmidecode dosfstools ethtool file gddrescue gdisk \
   hddtemp hdparm ifenslave iproute2 iputils-ping less lsof lvm2 lzip mdadm \
-  mtr-tiny netcat-traditional net-tools ntfs-3g parted pciutils procps psmisc \
-  rsync screen scrub smartmontools ssh strace sysstat tar tcpdump telnet \
-  traceroute tree usbutils vim vlan wget xz-utils systemd systemd-sysv"
+  mtr-tiny netcat-traditional net-tools ntfs-3g parted pciutils pixz procps \
+  psmisc rsync screen scrub smartmontools ssh strace sysstat tar tcpdump \
+  telnet traceroute tree usbutils vim vlan wget xz-utils systemd systemd-sysv"
 
 cat << EOF > ${TARGET}/usr/sbin/policy-rc.d
 #!/bin/sh
@@ -34,9 +34,10 @@ WARNING: Authorized access only!
 EOF
 cat << EOF > ${TARGET}/etc/issue
 WMI Rescue Linux (based on Debian GNU/Linux Stretch)
-Version ${VERSION}, AMD64
+Version ${VERSION} AMD64
 
 EOF
+sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/g' ${TARGET}/etc/ssh/sshd_config
 cat << EOF > ${TARGET}/etc/systemd/network/all.network
 [Match]
 
