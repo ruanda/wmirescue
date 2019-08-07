@@ -1,0 +1,13 @@
+#!/bin/sh
+
+TARGET=$1
+DEST=$2
+
+if [ ! -d "${TARGET}" ]; then
+  echo "Usage: $0 <rootfs_dir> <squashfs_image>"
+  exit 255
+fi
+
+echo "Generating squashfs..."
+rm -f ${DEST}
+mksquashfs ${TARGET} ${DEST} -comp xz -b 1M -no-exports -noI -Xbcj x86

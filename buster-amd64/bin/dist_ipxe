@@ -1,0 +1,44 @@
+#!/bin/sh
+
+VERSION=$1
+OUTPUT=$2
+NOFIRMWARE=$3
+
+
+LINE_FIRMWARE="initrd \${base}/\${version}/netboot/firmware.img"
+FILENAME="wmirescue.ipxe"
+
+
+if [ "${NOFIRMWARE}" = "--nofirmware" ]; then
+    LINE_FIRMWARE=""
+    FILENAME="wmirescue-nofirmware.ipxe"
+fi
+
+
+
+
+cat << EOF > ${OUTPUT}/${FILENAME}
+#!ipxe
+
+:retry_dhcp
+dhcp || goto retry_dhcp
+
+set version ${VERSION}
+set base http://rescue.wmi.amu.edu.pl/archive/
+
+echo Detecting architecture
+cpuid --ext 29 && set arch amd64 || set arch i386
+
+iseq \${arch} amd64 && goto boot ||
+echo WMI Rescue supports only the amd64 architecture
+exit
+
+:boot
+
+echo Booting WMI Rescue \${version} \${arch}
+
+kernel \${base}/\${version}/netboot/\${arch}/vmlinuz
+initrd \${base}/\${version}/netboot/\${arch}/initrd.img
+${LINE_FIRMWARE}
+boot
+EOF

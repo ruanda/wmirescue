@@ -1,0 +1,244 @@
+#!/bin/bash
+
+VERSION=$1
+ARCH=$2
+OUTPUT=$3
+NOFIRMWARE=$4
+
+TEMP_DIR=$(mktemp -d)
+
+APPEND_FIRMWARE=",/rescue/firmware.img"
+FILENAME="wmirescue_$ARCH.iso"
+
+mkdir -p $TEMP_DIR/boot/bios/i386-pc
+mkdir -p $TEMP_DIR/boot/bios/fonts
+mkdir -p $TEMP_DIR/boot/efi
+mkdir -p $TEMP_DIR/memtest
+mkdir -p $TEMP_DIR/rescue/$ARCH
+
+if [ "${NOFIRMWARE}" = "--nofirmware" ]; then
+    APPEND_FIRMWARE=""
+    FILENAME="wmirescue_$ARCH-nofirmware.iso"
+else
+    cp ${OUTPUT}/netboot/firmware.img $TEMP_DIR/rescue
+fi
+
+cp ${OUTPUT}/netboot/${ARCH}/vmlinuz $TEMP_DIR/rescue/$ARCH
+cp ${OUTPUT}/netboot/${ARCH}/initrd.img $TEMP_DIR/rescue/$ARCH
+
+
+#memtest
+
+echo -e "Preparing memtest...\n"
+
+TEMP_DIR_MEMTEST=$(mktemp -d)
+
+#BIOS
+wget -q http://www.memtest.org/download/5.01/memtest86+-5.01.zip -P ${TEMP_DIR_MEMTEST}
+unzip -q ${TEMP_DIR_MEMTEST}/memtest86+-5.01.zip -d ${TEMP_DIR_MEMTEST}
+cp ${TEMP_DIR_MEMTEST}/memtest86+-5.01.bin "$TEMP_DIR/memtest/memtest.bin"
+
+#EFI
+mkdir ${TEMP_DIR_MEMTEST}/mountpoint
+wget -q https://www.memtest86.com/downloads/memtest86-usb.zip -P ${TEMP_DIR_MEMTEST}
+unzip -q ${TEMP_DIR_MEMTEST}/memtest86-usb.zip -d ${TEMP_DIR_MEMTEST}
+losetup -o $((2048*512)) /dev/loop0 ${TEMP_DIR_MEMTEST}/memtest86-usb.img
+mount /dev/loop0 ${TEMP_DIR_MEMTEST}/mountpoint
+cp ${TEMP_DIR_MEMTEST}/mountpoint/EFI/BOOT/BOOTX64.efi "$TEMP_DIR/memtest/memtest86.efi"
+umount ${TEMP_DIR_MEMTEST}/mountpoint
+losetup -d /dev/loop0
+
+rm -r "${TEMP_DIR_MEMTEST}"
+
+
+#GRUB
+
+echo -e "Preparing GRUB...\n"
+
+TEMP_DIR_GRUB=$(mktemp -d)
+
+#BIOS
+cp media/black.png $TEMP_DIR/boot/
+cp /usr/share/grub/unicode.pf2 $TEMP_DIR/boot/bios/fonts/
+
+grub-mkimage -O i386-pc -p /boot/bios/ -o ${TEMP_DIR_GRUB}/core.img iso9660 biosdisk
+
+#cp -r /usr/lib/grub/i386-pc/*  $TEMP_DIR/boot/bios/i386-pc
+#rm $TEMP_DIR/boot/bios/i386-pc/*.img
+for module in normal boot extcmd crypto terminal gettext bufio \
+            linux video relocator mmap vbe video_fb \
+            linux16 \
+            gfxterm font gfxmenu trig bitmap_scale bitmap video_colors \
+            png; do
+    cp /usr/lib/grub/i386-pc/${module}.mod $TEMP_DIR/boot/bios/i386-pc
+done;
+
+cat /usr/lib/grub/i386-pc/cdboot.img ${TEMP_DIR_GRUB}/core.img > $TEMP_DIR/boot/bios/grub.img
+cat /usr/lib/grub/i386-pc/boot.img ${TEMP_DIR_GRUB}/core.img > ${TEMP_DIR_GRUB}/embedded.img
+
+#EFI
+grub-mkimage -C xz -O x86_64-efi -p /boot/efi/ -o "${TEMP_DIR_GRUB}/bootx64.efi" linux chain iso9660 normal all_video gfxterm gfxmenu png
+truncate -s $(($(stat --printf="%s" ${TEMP_DIR_GRUB}/bootx64.efi) + 24576)) ${TEMP_DIR_GRUB}/efi.img
+mkfs.vfat ${TEMP_DIR_GRUB}/efi.img
+mkdir ${TEMP_DIR_GRUB}/mountpoint
+mount ${TEMP_DIR_GRUB}/efi.img ${TEMP_DIR_GRUB}/mountpoint/
+mkdir -p ${TEMP_DIR_GRUB}/mountpoint/efi/boot
+cp ${TEMP_DIR_GRUB}/bootx64.efi ${TEMP_DIR_GRUB}/mountpoint/efi/boot/
+umount ${TEMP_DIR_GRUB}/mountpoint
+
+#CONFIG
+cat << EOF > $TEMP_DIR/boot/bios/grub.cfg
+insmod linux
+insmod linux16
+loadfont unicode
+insmod all_video
+insmod gfxterm
+terminal_output gfxterm
+
+set timeout=30
+insmod png
+set theme="/boot/theme.txt"
+
+menuentry "wmirescue-$ARCH" {
+    linux /rescue/$ARCH/vmlinuz
+    initrd /rescue/$ARCH/initrd.img /rescue/firmware.img
+}
+
+menuentry "wmirescue-$ARCH-serial" {
+    linux /rescue/$ARCH/vmlinuz console=ttyS0,115200n8
+    initrd /rescue/$ARCH/initrd.img /rescue/firmware.img
+}
+
+menuentry "memtest" {
+  linux16 /memtest/memtest.bin
+}
+EOF
+
+cat << EOF > $TEMP_DIR/boot/efi/grub.cfg
+loadfont unicode
+insmod gfxterm
+terminal_output gfxterm
+
+set timeout=30
+insmod png
+set theme="/boot/theme.txt"
+
+menuentry "wmirescue-$ARCH" {
+    linux /rescue/$ARCH/vmlinuz
+    initrd /rescue/$ARCH/initrd.img /rescue/firmware.img
+}
+
+menuentry "wmirescue-$ARCH-serial" {
+    linux /rescue/$ARCH/vmlinuz console=ttyS0,115200n8
+    initrd /rescue/$ARCH/initrd.img /rescue/firmware.img
+}
+
+menuentry "memtest" {
+  chainloader /memtest/memtest86.efi
+}
+EOF
+
+cat << EOF > $TEMP_DIR/boot/theme.txt
+title-text: ""
+desktop-color: "#000000"
+desktop-image: "black.png"
+terminal-left: "0"
+terminal-top: "0"
+terminal-width: "100%"
+terminal-height: "100%"
+terminal-border: "0"
+
++ label {
+    text = "WMI Rescue $VERSION"
+    left = 0%
+    top = 5%
+    width = 100%
+    align = "center"
+    color = "#fff" }
++ label {
+    text = "Booting in %d seconds"
+    left = 0%
+    top = 5%+24
+    width = 100%
+    align = "center"
+    id = "__timeout__"
+    color = "#999" }
++ boot_menu {
+    left = 7%
+    top = 15%
+    width = 100%
+    item_height = 24
+    item_spacing = 0
+    item_padding = 0
+    item_icon_space = 0
+    icon_width = 0
+    item_color = "#999"
+    selected_item_color = "#fff" }
++ label {
+    text = "Serial console parameters: baud rate: 115200, parity: no, bits: 8"
+    left = 7%
+    top = 95%-120
+    width = 100%
+    color = "#999" }
++ label {
+    text = "https://rescue.wmi.amu.edu.pl/"
+    left = 7%
+    top = 95%-72
+    width = 100%
+    color = "#999" }
++ label {
+    text = "Copyright (C) by Mateusz Hromada <ruanda@ruanda.pl>"
+    left = 7%
+    top = 95%-48
+    width = 100%
+    color = "#999" }
++ label {
+    text = "Copyright (C) by Tomasz Zaworski <zawoor@wmi.amu.edu.pl.pl>"
+    left = 7%
+    top = 95%-24
+    width = 100%
+    color = "#999" }
+EOF
+
+
+echo -e "\nGenerating iso...\n"
+
+#genisoimage -o ${OUTPUT}/${FILENAME} -b isolinux/isolinux.bin -c isolinux/boot.cat -no-emul-boot -boot-load-size 4 -boot-info-table "$TEMP_DIR"
+#isohybrid.pl ${OUTPUT}/${FILENAME}
+
+#xorriso -as mkisofs \
+#  -isohybrid-mbr /usr/lib/ISOLINUX/isohdpfx.bin \
+#  -c isolinux/boot.cat \
+#  -b isolinux/isolinux.bin \
+#  -no-emul-boot \
+#  -boot-load-size 4 \
+#  -boot-info-table \
+#  -eltorito-alt-boot \
+#  -e "--interval:appended_partition_2:all::" \
+#  -no-emul-boot \
+#  -isohybrid-gpt-basdat \
+#  -o "${OUTPUT}/${FILENAME}" \
+#  -append_partition 2 0xef ${TEMP_DIR_GRUB}/efi.img \
+#  -partition_cyl_align all \
+#  "$TEMP_DIR"
+
+xorriso -as mkisofs \
+  -quiet \
+  -b boot/bios/grub.img \
+  -no-emul-boot \
+  -boot-load-size 4 \
+  -boot-info-table \
+  --embedded-boot ${TEMP_DIR_GRUB}/embedded.img \
+  -eltorito-alt-boot \
+  -e "--interval:appended_partition_2:all::" \
+  -no-emul-boot \
+  -isohybrid-gpt-basdat \
+  -o "${OUTPUT}/${FILENAME}" \
+  -append_partition 2 0xef ${TEMP_DIR_GRUB}/efi.img \
+  -partition_cyl_align all \
+  -partition_offset 16 \
+  -iso_mbr_part_type 0x83 \
+  "$TEMP_DIR"
+
+rm -rf "${TEMP_DIR}"
+rm -rf "${TEMP_DIR_GRUB}"

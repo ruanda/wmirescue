@@ -1,0 +1,62 @@
+#!/bin/sh
+
+TARGET=$1
+VERSION=$(date +%g.%m)
+OUTPUT=${TARGET}/output/${VERSION}
+DEBIAN_CODENAME='buster'
+KERNEL_VERSION='4.19.0-5-amd64'
+ARCH='amd64'
+
+if [ -z "${TARGET}" ]; then
+    echo "Usage: $0 <work_dir>"
+    exit 255
+fi
+
+
+mkdir ${TARGET}
+mkdir ${TARGET}/ramdisk
+mkdir ${TARGET}/firmware
+mkdir -p ${OUTPUT}/netboot/${ARCH}
+
+./bin/basefs_init ${TARGET}/basefs ${DEBIAN_CODENAME}
+
+cp -a ${TARGET}/basefs ${TARGET}/rootfs
+cp -a ${TARGET}/basefs ${TARGET}/helperfs
+
+./bin/helperfs_config ${TARGET}/helperfs ${KERNEL_VERSION}
+
+# ROOTFS
+
+mkdir -p ${TARGET}/rootfs/lib/modules
+rsync -aS ${TARGET}/helperfs/lib/modules/ ${TARGET}/rootfs/lib/modules/
+./bin/rootfs_config ${TARGET}/rootfs ${DEBIAN_CODENAME}
+./bin/rootfs_clear ${TARGET}/rootfs
+./bin/rootfs_mksquashfs ${TARGET}/rootfs ${TARGET}/ramdisk/rootfs.squash
+
+# RAMDISK
+
+mkdir -p ${TARGET}/ramdisk/bin
+mkdir -p ${TARGET}/ramdisk/dev
+mkdir -p ${TARGET}/ramdisk/lib/modules
+mkdir -p ${TARGET}/ramdisk/proc
+mkdir -p ${TARGET}/ramdisk/sys
+cp ${TARGET}/helperfs/bin/busybox ${TARGET}/ramdisk/bin/busybox
+./bin/ramdisk_modules ${TARGET}/ramdisk ${TARGET}/rootfs ${KERNEL_VERSION}
+./bin/ramdisk_config ${TARGET}/ramdisk ${KERNEL_VERSION}
+./bin/ramdisk_make ${OUTPUT}/netboot/${ARCH}/initrd.img ${TARGET}/ramdisk
+
+# FIRMWARE
+tar cf ${TARGET}/firmware/firmware.tar --owner=root --group=root -C ${TARGET}/helperfs ./lib/firmware
+./bin/ramdisk_make ${OUTPUT}/netboot/firmware.img ${TARGET}/firmware
+
+# KERNEL
+
+cp ${TARGET}/helperfs/boot/vmlinuz-${KERNEL_VERSION} ${OUTPUT}/netboot/${ARCH}/vmlinuz
+
+
+# DIST
+tar cvf ${OUTPUT}/wmirescue_${ARCH}-netboot.tar -C ${OUTPUT}/netboot .
+./bin/dist_ipxe ${VERSION} ${OUTPUT}
+./bin/dist_ipxe ${VERSION} ${OUTPUT} --nofirmware
+./bin/dist_iso ${VERSION} ${ARCH} ${OUTPUT}
+./bin/dist_iso ${VERSION} ${ARCH} ${OUTPUT} --nofirmware

@@ -1,0 +1,28 @@
+#!/bin/sh
+
+TARGET=$1
+DEBIAN_CODENAME=$2
+LANG=C
+
+mkdir ${TARGET}
+
+debootstrap --arch=amd64 --variant=minbase ${DEBIAN_CODENAME} ${TARGET} http://httpredir.debian.org/debian
+
+cat << EOF > ${TARGET}/etc/apt/sources.list
+deb http://httpredir.debian.org/debian ${DEBIAN_CODENAME} main contrib non-free
+deb http://security.debian.org/ ${DEBIAN_CODENAME}/updates main contrib non-free
+EOF
+
+cat << EOF > ${TARGET}/etc/apt/apt.conf.d/80small
+APT::Install-Recommends '0';
+APT::Install-Suggests '0';
+EOF
+
+echo wmirescue > ${TARGET}/etc/hostname
+
+echo 'root:wmi' | chroot ${TARGET} chpasswd
+
+chroot ${TARGET} apt-get update
+chroot ${TARGET} apt-get upgrade --yes
+chroot ${TARGET} apt-get clean
+

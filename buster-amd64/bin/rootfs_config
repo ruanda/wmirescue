@@ -1,0 +1,81 @@
+#!/bin/bash
+
+TARGET=$1
+DEBIAN_CODENAME=$2
+LANG=C
+VERSION="$(date +%g.%m)"
+
+SOFTWARE="acl acpi-support-base attr bash-completion bind9-host binutils \
+  bridge-utils bsdmainutils debootstrap dmidecode dosfstools ethtool file gddrescue gdisk \
+  hddtemp hdparm ifenslave iproute2 iputils-ping less lsof lvm2 lzip mdadm \
+  mtr-tiny netcat-traditional net-tools ntfs-3g parted pciutils pixz procps \
+  psmisc rsync screen scrub smartmontools ssh strace sysstat tar tcpdump \
+  telnet traceroute tree usbutils vim vlan wget xz-utils systemd systemd-sysv \
+  nfs-common ipxe grub-pc grub-efi-amd64-bin efibootmgr pv mtools xfsprogs \
+  zfsutils-linux "
+
+cat << EOF > ${TARGET}/usr/sbin/policy-rc.d
+#!/bin/sh
+echo "All runlevel operations denied by policy" >&2
+exit 101
+EOF
+chmod a+x $TARGET/usr/sbin/policy-rc.d
+
+export DEBIAN_FRONTEND=noninteractive
+chroot ${TARGET} apt-get --yes install ${SOFTWARE}
+chroot ${TARGET} systemctl enable systemd-networkd.service
+chroot ${TARGET} systemctl enable systemd-resolved.service
+
+rm ${TARGET}/usr/sbin/policy-rc.d
+
+echo "Etc/UTC" > ${TARGET}/etc/timezone
+chroot ${TARGET} dpkg-reconfigure -f noninteractive tzdata
+
+cat << EOF > ${TARGET}/etc/motd
+
+WARNING: Authorized access only!
+
+EOF
+cat << EOF > ${TARGET}/etc/issue
+WMI Rescue Linux (based on Debian GNU/Linux ${DEBIAN_CODENAME^})
+Version ${VERSION} AMD64
+
+EOF
+
+#disable console blanking
+#(consoleblank=0 as kernel param or setterm -blank 0)
+#current value can be checked in /sys/module/kernel/parameters/consoleblank
+echo -ne "\033[9;0]" >> ${TARGET}/etc/issue
+
+sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/g' ${TARGET}/etc/ssh/sshd_config
+cat << EOF > ${TARGET}/etc/systemd/network/all.network
+[Match]
+
+[Network]
+DHCP=both
+EOF
+cat << EOF > ${TARGET}/etc/systemd/resolved.conf
+[Resolve]
+DNS=8.8.8.8 8.8.4.4 2001:4860:4860::8888 2001:4860:4860::8844
+EOF
+rm ${TARGET}/etc/resolv.conf
+ln -s /run/systemd/resolve/resolv.conf ${TARGET}/etc/resolv.conf
+rm ${TARGET}/etc/systemd/system/network-online.target.wants/systemd-networkd-wait-online.service
+cat << EOF > ${TARGET}/etc/screenrc
+startup_message off
+defscrollback 5000
+EOF
+cat << EOF > ${TARGET}/etc/sysctl.d/60-panic.conf
+kernel.panic = 5
+kernel.panic_on_oops = 1
+EOF
+sed -i 's/" let g:skip_defaults_vim = 1/let g:skip_defaults_vim = 1/g' ${TARGET}/etc/vim/vimrc
+rsync -avS ${TARGET}/etc/skel/ ${TARGET}/root/
+
+
+echo zfs >> ${TARGET}/etc/modules
+
+mkdir ${TARGET}/etc/bash_completion.d
+for i in zfs; do
+    cp ${TARGET}/usr/share/bash-completion/completions/${i} ${TARGET}/etc/bash_completion.d/
+done
