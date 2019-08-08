@@ -76,6 +76,4 @@ rsync -avS ${TARGET}/etc/skel/ ${TARGET}/root/
 echo zfs >> ${TARGET}/etc/modules
 
 mkdir ${TARGET}/etc/bash_completion.d
-for i in zfs; do
-    cp ${TARGET}/usr/share/bash-completion/completions/${i} ${TARGET}/etc/bash_completion.d/
-done
+cp ${TARGET}/usr/share/bash-completion/completions/zfs ${TARGET}/etc/bash_completion.d/

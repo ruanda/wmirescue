@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 VERSION=$1
 ARCH=$2
@@ -29,7 +29,8 @@ cp ${OUTPUT}/netboot/${ARCH}/initrd.img $TEMP_DIR/rescue/$ARCH
 
 #memtest
 
-echo -e "Preparing memtest...\n"
+echo "Preparing memtest..."
+echo
 
 TEMP_DIR_MEMTEST=$(mktemp -d)
 
@@ -53,7 +54,9 @@ rm -r "${TEMP_DIR_MEMTEST}"
 
 #GRUB
 
-echo -e "Preparing GRUB...\n"
+echo
+echo "Preparing GRUB..."
+echo
 
 TEMP_DIR_GRUB=$(mktemp -d)
 
@@ -200,27 +203,9 @@ terminal-border: "0"
     color = "#999" }
 EOF
 
-
-echo -e "\nGenerating iso...\n"
-
-#genisoimage -o ${OUTPUT}/${FILENAME} -b isolinux/isolinux.bin -c isolinux/boot.cat -no-emul-boot -boot-load-size 4 -boot-info-table "$TEMP_DIR"
-#isohybrid.pl ${OUTPUT}/${FILENAME}
-
-#xorriso -as mkisofs \
-#  -isohybrid-mbr /usr/lib/ISOLINUX/isohdpfx.bin \
-#  -c isolinux/boot.cat \
-#  -b isolinux/isolinux.bin \
-#  -no-emul-boot \
-#  -boot-load-size 4 \
-#  -boot-info-table \
-#  -eltorito-alt-boot \
-#  -e "--interval:appended_partition_2:all::" \
-#  -no-emul-boot \
-#  -isohybrid-gpt-basdat \
-#  -o "${OUTPUT}/${FILENAME}" \
-#  -append_partition 2 0xef ${TEMP_DIR_GRUB}/efi.img \
-#  -partition_cyl_align all \
-#  "$TEMP_DIR"
+echo
+echo "Generating iso..."
+echo
 
 xorriso -as mkisofs \
   -quiet \
