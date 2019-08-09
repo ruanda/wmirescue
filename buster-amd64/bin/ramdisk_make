@@ -1,0 +1,13 @@
+#!/bin/sh
+
+TARGET=$1
+RAMDISK=$2
+
+
+if [ ! -d "${RAMDISK}" ]; then
+  echo "Usage: $0 <ramdisk_img> <ramdisk_dir>"
+  exit 255
+fi
+
+echo "Generating initramfs..."
+(cd ${RAMDISK}; find . | cpio -H newc -o | gzip -1) > ${TARGET}

@@ -1,0 +1,28 @@
+#!/bin/sh
+
+TARGET=$1
+ROOTFS=$2
+KERNEL_VERSION=$3
+
+if [ ! -d "$TARGET" -o ! -d "$ROOTFS" ]; then
+    echo "Usage: $0 <ramdisk_dir> <rootfs_dir> <version>"
+    exit 255
+fi
+
+add_module() {
+    for kmod in $(modprobe --dirname=${ROOTFS} --set-version="${KERNEL_VERSION}" --ignore-install --quiet --show-depends "$1" | awk '/^insmod/ { print $2 }'); do
+        path=$(realpath --relative-to ${ROOTFS} ${kmod})
+        if [ -e $TARGET/$path ]; then
+            continue
+        fi
+        mkdir -p $TARGET/$(dirname $path)
+        cp $kmod $TARGET/$(dirname $path)
+    done
+}
+
+echo "Loading modules..."
+for i in loop squashfs overlay; do
+    add_module $i
+done
+mkdir -p $TARGET/lib/modules/${KERNEL_VERSION}/
+cp ${ROOTFS}/lib/modules/${KERNEL_VERSION}/modules.dep $TARGET/lib/modules/${KERNEL_VERSION}/

@@ -1,0 +1,23 @@
+#!/bin/sh
+
+TARGET=$1
+KERNEL_VERSION=$2
+LANG=C
+
+FIRMWARES="firmware-bnx2 firmware-bnx2x firmware-cavium firmware-linux-free \
+    firmware-misc-nonfree firmware-myricom firmware-netxen firmware-qlogic \
+    firmware-realtek"
+
+cat << EOF > $TARGET/usr/sbin/policy-rc.d
+#!/bin/sh
+echo "All runlevel operations denied by policy" >&2
+exit 101
+EOF
+chmod a+x $TARGET/usr/sbin/policy-rc.d
+
+chroot ${TARGET} mount -t proc proc /proc
+chroot ${TARGET} apt-get --yes install busybox-static linux-image-${KERNEL_VERSION}
+chroot ${TARGET} apt-get --yes install linux-headers-${KERNEL_VERSION}
+chroot ${TARGET} apt-get --yes install zfs-dkms
+chroot ${TARGET} apt-get --yes install ${FIRMWARES}
+chroot ${TARGET} umount /proc
