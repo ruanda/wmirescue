@@ -7,7 +7,6 @@ DEBIAN_CODENAME='buster'
 KERNEL_VERSION='4.19.0-5-amd64'
 ARCH='amd64'
 
-UMASK_ORIG=$(umask)
 umask 022
 
 if [ -z "${TARGET}" ]; then
@@ -63,5 +62,3 @@ tar cvf ${OUTPUT}/wmirescue_${ARCH}-netboot.tar -C ${OUTPUT}/netboot .
 ./bin/dist_ipxe ${VERSION} ${OUTPUT} --nofirmware
 ./bin/dist_iso ${VERSION} ${ARCH} ${OUTPUT}
 ./bin/dist_iso ${VERSION} ${ARCH} ${OUTPUT} --nofirmware
-
-umask ${UMASK_ORIG}
